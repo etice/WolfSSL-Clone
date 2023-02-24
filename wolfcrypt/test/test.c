@@ -28067,7 +28067,12 @@ static int curve25519_overflow_test(void)
         /* test against known test vector */
         XMEMSET(shared, 0, sizeof(shared));
         y = sizeof(shared);
-        if (wc_curve25519_shared_secret(&userA, &userA, shared, &y) != 0) {
+        ret = wc_curve25519_shared_secret(&userA, &userA, shared, &y);
+    #if defined(WOLFSSL_ASYNC_CRYPT)
+        if (ret == WC_PENDING_E)
+            ret = wc_AsyncWait(ret, &userA.asyncDev, WC_ASYNC_FLAG_NONE);
+    #endif
+        if (ret != 0) {
             ret = -10510 - i; break;
         }
 
@@ -28276,6 +28281,100 @@ static int curve255519_der_test(void)
 }
 #endif /* !NO_ASN && HAVE_CURVE25519_KEY_EXPORT && HAVE_CURVE25519_KEY_IMPORT */
 
+#ifdef WC_X25519_NONBLOCK
+
+static int x25519_nonblock_test(WC_RNG* rng)
+{
+    int ret = 0;
+    x25519_nb_ctx_t nbCtx;
+    curve25519_key userA;
+    curve25519_key userB;
+#ifdef HAVE_CURVE25519_SHARED_SECRET
+    byte    sharedA[32];
+    byte    sharedB[32];
+    word32  x;
+    word32  y;
+#endif
+    int count;
+
+    XMEMSET(&nbCtx, 0, sizeof(nbCtx));
+
+    ret = wc_curve25519_set_nonblock(&userA, &nbCtx);
+    if (ret != 0) {
+        printf("wc_curve25519_set_nonblock 1 %d\n", ret);
+        return -10723;
+    }
+    count = 0;
+    do {
+        ret = wc_curve25519_make_key(rng, 32, &userA);
+        count++;
+    } while (ret == FP_WOULDBLOCK);
+    if (ret != 0) {
+        printf("wc_curve25519_make_key_nb 1 %d\n", ret);
+        return -10724;
+    }
+#ifdef DEBUG_WOLFSSL
+    fprintf(stderr, "CURVE25519 non-block key gen: %d times\n", count);
+#endif
+
+    ret = wc_curve25519_set_nonblock(&userB, &nbCtx);
+    if (ret != 0) {
+        printf("wc_curve25519_set_nonblock 2 %d\n", ret);
+        return -10725;
+    }
+    count = 0;
+    do {
+        ret = wc_curve25519_make_key(rng, 32, &userB);
+        count++;
+    } while (ret == FP_WOULDBLOCK);
+    if (ret != 0) {
+        printf("wc_curve25519_make_key_nb 2 %d\n", ret);
+        return -10726;
+    }
+
+#ifdef HAVE_CURVE25519_SHARED_SECRET
+    x = sizeof(sharedA);
+    do {
+        ret = wc_curve25519_shared_secret(&userA, &userB, sharedA, &x);
+    } while (ret == FP_WOULDBLOCK);
+    if (ret != 0) {
+        printf("wc_curve25519_shared_secret_nb 1 %d\n", ret);
+        return -10727;
+    }
+
+    y = sizeof(sharedB);
+    count = 0;
+    do {
+        ret = wc_curve25519_shared_secret(&userB, &userA, sharedB, &y);
+        count++;
+    }
+    while (ret == FP_WOULDBLOCK);
+    if (ret != 0) {
+        printf("wc_curve25519_shared_secret_nb 2 %d\n", ret);
+        return -10728;
+    }
+#ifdef DEBUG_WOLFSSL
+    fprintf(stderr, "CURVE25519 non-block shared secret: %d times\n", count);
+#endif
+
+    /* compare shared secret keys to test they are the same */
+    if (y != x) {
+        return -10729;
+    }
+
+    if (XMEMCMP(sharedA, sharedB, x) != 0) {
+        return -10730;
+    }
+#endif /* HAVE_CURVE25519_SHARED_SECRET */
+
+    wc_curve25519_free(&userA);
+    wc_curve25519_free(&userB);
+
+    return 0;
+}
+
+#endif /* WC_X25519_NONBLOCK */
+
 WOLFSSL_TEST_SUBROUTINE int curve25519_test(void)
 {
     WC_RNG  rng;
@@ -28353,25 +28452,41 @@ WOLFSSL_TEST_SUBROUTINE int curve25519_test(void)
     wc_curve25519_init_ex(&pubKey, HEAP_HINT, devId);
 
     /* make curve25519 keys */
-    if (wc_curve25519_make_key(&rng, 32, &userA) != 0)
+    ret = wc_curve25519_make_key(&rng, 32, &userA);
+#if defined(WOLFSSL_ASYNC_CRYPT)
+    if (ret == WC_PENDING_E)
+        ret = wc_AsyncWait(ret, &userA.asyncDev, WC_ASYNC_FLAG_NONE);
+#endif
+    if (ret != 0)
         return -10701;
 
-    if (wc_curve25519_make_key(&rng, 32, &userB) != 0)
+    ret = wc_curve25519_make_key(&rng, 32, &userB);
+#if defined(WOLFSSL_ASYNC_CRYPT)
+    if (ret == WC_PENDING_E)
+        ret = wc_AsyncWait(ret, &userB.asyncDev, WC_ASYNC_FLAG_NONE);
+#endif
+    if (ret != 0)
         return -10702;
 
 #ifdef HAVE_CURVE25519_SHARED_SECRET
     /* find shared secret key */
     x = sizeof(sharedA);
-    if ((ret = wc_curve25519_shared_secret(&userA, &userB, sharedA, &x)) != 0) {
-        printf("wc_curve25519_shared_secret 1 %d\n", ret);
+    ret = wc_curve25519_shared_secret(&userA, &userB, sharedA, &x);
+#if defined(WOLFSSL_ASYNC_CRYPT)
+    if (ret == WC_PENDING_E)
+        ret = wc_AsyncWait(ret, &userA.asyncDev, WC_ASYNC_FLAG_NONE);
+#endif
+    if (ret != 0)
         return -10703;
-    }
 
     y = sizeof(sharedB);
-    if ((ret = wc_curve25519_shared_secret(&userB, &userA, sharedB, &y)) != 0) {
-        printf("wc_curve25519_shared_secret 2 %d\n", ret);
+    ret = wc_curve25519_shared_secret(&userB, &userA, sharedB, &y);
+#if defined(WOLFSSL_ASYNC_CRYPT)
+    if (ret == WC_PENDING_E)
+        ret = wc_AsyncWait(ret, &userB.asyncDev, WC_ASYNC_FLAG_NONE);
+#endif
+    if (ret != 0)
         return -10704;
-    }
 
     /* compare shared secret keys to test they are the same */
     if (y != x)
@@ -28398,7 +28513,12 @@ WOLFSSL_TEST_SUBROUTINE int curve25519_test(void)
     /* test shared key after importing a public key */
     XMEMSET(sharedB, 0, sizeof(sharedB));
     y = sizeof(sharedB);
-    if (wc_curve25519_shared_secret(&userB, &pubKey, sharedB, &y) != 0)
+    ret = wc_curve25519_shared_secret(&userB, &pubKey, sharedB, &y);
+#if defined(WOLFSSL_ASYNC_CRYPT)
+    if (ret == WC_PENDING_E)
+        ret = wc_AsyncWait(ret, &userB.asyncDev, WC_ASYNC_FLAG_NONE);
+#endif
+    if (ret != 0)
         return -10709;
 
     if (XMEMCMP(sharedA, sharedB, y))
@@ -28416,7 +28536,12 @@ WOLFSSL_TEST_SUBROUTINE int curve25519_test(void)
     /* test against known test vector */
     XMEMSET(sharedB, 0, sizeof(sharedB));
     y = sizeof(sharedB);
-    if (wc_curve25519_shared_secret(&userA, &userB, sharedB, &y) != 0)
+    ret = wc_curve25519_shared_secret(&userA, &userB, sharedB, &y);
+    #if defined(WOLFSSL_ASYNC_CRYPT)
+    if (ret == WC_PENDING_E)
+        ret = wc_AsyncWait(ret, &userA.asyncDev, WC_ASYNC_FLAG_NONE);
+#endif
+    if (ret != 0)
         return -10713;
 
     if (XMEMCMP(ss, sharedB, y))
@@ -28425,7 +28550,12 @@ WOLFSSL_TEST_SUBROUTINE int curve25519_test(void)
     /* test swapping roles of keys and generating same shared key */
     XMEMSET(sharedB, 0, sizeof(sharedB));
     y = sizeof(sharedB);
-    if (wc_curve25519_shared_secret(&userB, &userA, sharedB, &y) != 0)
+    ret = wc_curve25519_shared_secret(&userB, &userA, sharedB, &y);
+#if defined(WOLFSSL_ASYNC_CRYPT)
+    if (ret == WC_PENDING_E)
+        ret = wc_AsyncWait(ret, &userB.asyncDev, WC_ASYNC_FLAG_NONE);
+#endif
+    if (ret != 0)
         return -10715;
 
     if (XMEMCMP(ss, sharedB, y))
@@ -28439,15 +28569,30 @@ WOLFSSL_TEST_SUBROUTINE int curve25519_test(void)
     wc_curve25519_free(&userB);
     wc_curve25519_init_ex(&userB, HEAP_HINT, devId);
 
-    if (wc_curve25519_make_key(&rng, 32, &userB) != 0)
+    ret = wc_curve25519_make_key(&rng, 32, &userB);
+#if defined(WOLFSSL_ASYNC_CRYPT)
+    if (ret == WC_PENDING_E)
+        ret = wc_AsyncWait(ret, &userB.asyncDev, WC_ASYNC_FLAG_NONE);
+#endif
+    if (ret != 0)
         return -10718;
 
     x = sizeof(sharedA);
-    if (wc_curve25519_shared_secret(&userA, &userB, sharedA, &x) != 0)
+    ret = wc_curve25519_shared_secret(&userA, &userB, sharedA, &x);
+#if defined(WOLFSSL_ASYNC_CRYPT)
+    if (ret == WC_PENDING_E)
+        ret = wc_AsyncWait(ret, &userA.asyncDev, WC_ASYNC_FLAG_NONE);
+#endif
+    if (ret != 0)
         return -10719;
 
     y = sizeof(sharedB);
-    if (wc_curve25519_shared_secret(&userB, &userA, sharedB, &y) != 0)
+    ret = wc_curve25519_shared_secret(&userB, &userA, sharedB, &y);
+#if defined(WOLFSSL_ASYNC_CRYPT)
+    if (ret == WC_PENDING_E)
+        ret = wc_AsyncWait(ret, &userB.asyncDev, WC_ASYNC_FLAG_NONE);
+#endif
+    if (ret != 0)
         return -10720;
 
     /* compare shared secret keys to test they are the same */
@@ -28471,6 +28616,13 @@ WOLFSSL_TEST_SUBROUTINE int curve25519_test(void)
     if (ret != 0)
         return ret;
 #endif
+
+#ifdef WC_X25519_NONBLOCK
+    ret = x25519_nonblock_test(&rng);
+    if (ret != 0) {
+        return ret;
+    }
+#endif /* WC_X25519_NONBLOCK */
 
     /* clean up keys when done */
     wc_curve25519_free(&pubKey);
