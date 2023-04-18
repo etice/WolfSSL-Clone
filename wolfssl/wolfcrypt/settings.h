@@ -223,9 +223,6 @@
 /* Uncomment next line if building for using ESP-IDF */
 /* #define WOLFSSL_ESPIDF */
 
-/* Uncomment next line if using Espressif ESP32-WROOM-32 */
-/* #define WOLFSSL_ESPWROOM32 */
-
 /* Uncomment next line if using Espressif ESP32-WROOM-32SE */
 /* #define WOLFSSL_ESPWROOM32SE */
 
@@ -350,16 +347,35 @@
     #define ECC_TIMING_RESISTANT
     #define WC_RSA_BLINDING
 
-#if defined(WOLFSSL_ESPWROOM32) || defined(WOLFSSL_ESPWROOM32SE)
-   #ifndef NO_ESP32WROOM32_CRYPT
-        #define WOLFSSL_ESP32WROOM32_CRYPT
+#if defined(CONFIG_IDF_TARGET_ESP32)
+   #ifndef NO_ESP32_CRYPT
+        #define WOLFSSL_ESP32_CRYPT
         #if defined(ESP32_USE_RSA_PRIMITIVE) && \
-            !defined(NO_WOLFSSL_ESP32WROOM32_CRYPT_RSA_PRI)
-            #define WOLFSSL_ESP32WROOM32_CRYPT_RSA_PRI
+            !defined(NO_WOLFSSL_ESP32_CRYPT_RSA_PRI)
+            #define WOLFSSL_ESP32_CRYPT_RSA_PRI
+            #define WOLFSSL_ESP_CRYPT_RSA_PRI 1
             #define WOLFSSL_SMALL_STACK
+        #endif
+        #ifndef NO_WOLFSSL_ESP32_CRYPT_HASH
+            #define WOLFSSL_ESP32_CRYPT_HASH
+            #define WOLFSSL_ESP_CRYPT_HASH 1
+        #endif
+        #ifndef NO_WOLFSSL_ESP32_CRYPT_AES
+            #define WOLFSSL_ESP32_CRYPT_AES
+            #define WOLFSSL_ESP_CRYPT_AES 1
         #endif
    #endif
 #endif
+
+    #ifndef WOLFSSL_ESP_CRYPT_RSA_PRI
+        #define WOLFSSL_ESP_CRYPT_RSA_PRI 0
+    #endif
+    #ifndef WOLFSSL_ESP_CRYPT_HASH
+        #define WOLFSSL_ESP_CRYPT_HASH 0
+    #endif
+    #ifndef WOLFSSL_ESP_CRYPT_AES
+        #define WOLFSSL_ESP_CRYPT_AES 0
+    #endif
 #endif /* WOLFSSL_ESPIDF */
 
 #if defined(WOLFCRYPT_ONLY)
