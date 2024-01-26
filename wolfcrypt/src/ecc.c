@@ -4573,9 +4573,13 @@ int wc_ecc_shared_secret(ecc_key* private_key, ecc_key* public_key, byte* out,
         #ifndef WOLF_CRYPTO_CB_ONLY_ECC
         if (err != CRYPTOCB_UNAVAILABLE)
             return err;
+        /* mark that fallback was used so the user can act accordingly */
+        else {
+            private_key->cryptoCbSWFallback = 1;
+            public_key->cryptoCbSWFallback = 1;
+        }
         /* fall-through when unavailable */
-        #endif
-        #ifdef WOLF_CRYPTO_CB_ONLY_ECC
+        #else
         if (err == CRYPTOCB_UNAVAILABLE) {
             err = NO_VALID_DEVID;
         }
@@ -5532,9 +5536,11 @@ static int _ecc_make_key_ex(WC_RNG* rng, int keysize, ecc_key* key,
         #ifndef WOLF_CRYPTO_CB_ONLY_ECC
         if (err != CRYPTOCB_UNAVAILABLE)
             return err;
+        /* mark that fallback was used so the user can act accordingly */
+        else
+            key->cryptoCbSWFallback = 1;
         /* fall-through when unavailable */
-        #endif
-        #ifdef WOLF_CRYPTO_CB_ONLY_ECC
+        #else
         if (err == CRYPTOCB_UNAVAILABLE) {
             return NO_VALID_DEVID;
         }
@@ -6566,9 +6572,11 @@ int wc_ecc_sign_hash(const byte* in, word32 inlen, byte* out, word32 *outlen,
         #ifndef WOLF_CRYPTO_CB_ONLY_ECC
         if (err != CRYPTOCB_UNAVAILABLE)
             return err;
+        /* mark that fallback was used so the user can act accordingly */
+        else
+            key->cryptoCbSWFallback = 1;
         /* fall-through when unavailable */
-        #endif
-        #ifdef WOLF_CRYPTO_CB_ONLY_ECC
+        #else
         if (err == CRYPTOCB_UNAVAILABLE) {
             err = NO_VALID_DEVID;
         }
@@ -8292,9 +8300,11 @@ int wc_ecc_verify_hash(const byte* sig, word32 siglen, const byte* hash,
         #ifndef WOLF_CRYPTO_CB_ONLY_ECC
         if (err != CRYPTOCB_UNAVAILABLE)
             return err;
+        /* mark that fallback was used so the user can act accordingly */
+        else
+            key->cryptoCbSWFallback = 1;
         /* fall-through when unavailable */
-        #endif
-        #ifdef WOLF_CRYPTO_CB_ONLY_ECC
+        #else
         if (err == CRYPTOCB_UNAVAILABLE) {
             err = NO_VALID_DEVID;
         }
