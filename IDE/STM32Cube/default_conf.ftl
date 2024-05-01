@@ -335,13 +335,22 @@ extern ${variable.value} ${variable.name};
 #endif
 
 /* Post Quantum
- * Note: PQM4 is compatible with STM32. The project can be found at:
- * https://github.com/mupq/pqm4
+ * Note: For now, only KYBER.
  */
-#if defined(WOLF_CONF_PQM4) && WOLF_CONF_PQM4 == 1
-    #define HAVE_PQM4
-#endif
+#if defined(WOLF_CONF_PQ) && WOLF_CONF_PQ == 1
+    #define HAVE_PQ
+    #define WOLFSSL_WC_KYBER
+    #define WOLFSSL_HAVE_KYBER
 
+    #undef WOLFSSL_SHAKE128
+    #define WOLFSSL_SHAKE128
+
+    #undef WOLFSSL_SHAKE256
+    #define WOLFSSL_SHAKE256
+
+    #undef WOLFSSL_SHA3
+    #define WOLFSSL_SHA3
+#endif
 
 /* ------------------------------------------------------------------------- */
 /* Crypto */
@@ -613,8 +622,11 @@ extern ${variable.value} ${variable.name};
 #define NO_RC4
 #define NO_MD4
 #define NO_DES3
+
+#if defined(WOLF_CONF_PQ) && WOLF_CONF_PQ == 0
 #define WOLFSSL_NO_SHAKE128
 #define WOLFSSL_NO_SHAKE256
+#endif
 
 /* In-lining of misc.c functions */
 /* If defined, must include wolfcrypt/src/misc.c in build */
