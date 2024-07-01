@@ -14333,6 +14333,17 @@ static int ProcessPeerCertsChainCRLCheck(WOLFSSL* ssl, ProcPeerCertArgs* args)
                 ca->serialHash, NULL, 0, NULL);
         if (ret != 0)
             DoCrlCallback(cm, ssl, args, &ret);
+        if (ret != 0 && !args->verifyCbCalled) {
+            ret = DoVerifyCallback(SSL_CM(ssl), ssl, ret, args);
+            if (ssl->options.verifyNone &&
+                    (ret == CRL_MISSING || ret == CRL_CERT_REVOKED ||
+                    ret == CRL_CERT_DATE_ERR)) {
+                WOLFSSL_MSG("Ignoring CRL problem based on verify setting");
+                ret = ssl->error = 0;
+            }
+            if (ret != 0)
+                args->verifyCbCalled = 1;
+        }
         if (ret != 0){
             WOLFSSL_ERROR_VERBOSE(ret);
             WOLFSSL_MSG("\tCRL check not ok");
@@ -14915,13 +14926,17 @@ int ProcessPeerCerts(WOLFSSL* ssl, byte* input, word32* inOutIdx,
                 #endif /* defined(__APPLE__) && defined(WOLFSSL_SYS_CA_CERTS) */
 
                     /* Do verify callback */
-                    ret = DoVerifyCallback(SSL_CM(ssl), ssl, ret, args);
-                    if (ssl->options.verifyNone &&
-                              (ret == WC_NO_ERR_TRACE(CRL_MISSING) ||
-                               ret == WC_NO_ERR_TRACE(CRL_CERT_REVOKED) ||
-                               ret == WC_NO_ERR_TRACE(CRL_CERT_DATE_ERR))) {
-                        WOLFSSL_MSG("Ignoring CRL problem based on verify setting");
-                        ret = ssl->error = 0;
+                    if (!args->verifyCbCalled) {
+                        ret = DoVerifyCallback(SSL_CM(ssl), ssl, ret, args);
+                        if (ssl->options.verifyNone &&
+                                (ret == WC_NO_ERR_TRACE(CRL_MISSING) ||
+                                 ret == WC_NO_ERR_TRACE(CRL_CERT_REVOKED) ||
+                                 ret == WC_NO_ERR_TRACE(CRL_CERT_DATE_ERR))) {
+                            WOLFSSL_MSG("Ignoring CRL problem based on verify setting");
+                            ret = ssl->error = 0;
+                        }
+                        if (ret != 0)
+                            args->verifyCbCalled = 1;
                     }
 
                 #ifdef WOLFSSL_ALT_CERT_CHAINS
@@ -15919,15 +15934,19 @@ int ProcessPeerCerts(WOLFSSL* ssl, byte* input, word32* inOutIdx,
             }
         #endif /* defined(__APPLE__) && defined(WOLFSSL_SYS_CA_CERTS) */
 
-            /* Do verify callback */
-            ret = DoVerifyCallback(SSL_CM(ssl), ssl, ret, args);
+            if (!args->verifyCbCalled) {
+                /* Do verify callback */
+                ret = DoVerifyCallback(SSL_CM(ssl), ssl, ret, args);
 
-            if (ssl->options.verifyNone &&
-                              (ret == WC_NO_ERR_TRACE(CRL_MISSING) ||
-                               ret == WC_NO_ERR_TRACE(CRL_CERT_REVOKED) ||
-                               ret == WC_NO_ERR_TRACE(CRL_CERT_DATE_ERR))) {
-                WOLFSSL_MSG("Ignoring CRL problem based on verify setting");
-                ret = ssl->error = 0;
+                if (ssl->options.verifyNone &&
+                                (ret == WC_NO_ERR_TRACE(CRL_MISSING) ||
+                                ret == WC_NO_ERR_TRACE(CRL_CERT_REVOKED) ||
+                                ret == WC_NO_ERR_TRACE(CRL_CERT_DATE_ERR))) {
+                    WOLFSSL_MSG("Ignoring CRL problem based on verify setting");
+                    ret = ssl->error = 0;
+                }
+                if (ret != 0)
+                    args->verifyCbCalled = 1;
             }
 
             if (ret != 0) {
