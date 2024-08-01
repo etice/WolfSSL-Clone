@@ -1862,9 +1862,8 @@ enum Misc {
 #define WOLFSSL_NAMED_GROUP_IS_FFHDE(group) \
     (MIN_FFHDE_GROUP <= (group) && (group) <= MAX_FFHDE_GROUP)
 #ifdef WOLFSSL_HAVE_KYBER
-#define WOLFSSL_NAMED_GROUP_IS_PQC(group) \
-    ((WOLFSSL_PQC_SIMPLE_MIN <= (group) && (group) <= WOLFSSL_PQC_SIMPLE_MAX) || \
-     (WOLFSSL_PQC_HYBRID_MIN <= (group) && (group) <= WOLFSSL_PQC_HYBRID_MAX))
+WOLFSSL_LOCAL int NamedGroupIsPqc(int group);
+#define WOLFSSL_NAMED_GROUP_IS_PQC(group) NamedGroupIsPqc(group)
 #else
 #define WOLFSSL_NAMED_GROUP_IS_PQC(group)    ((void)(group), 0)
 #endif /* WOLFSSL_HAVE_KYBER */
