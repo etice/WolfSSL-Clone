@@ -34154,6 +34154,16 @@ static int DoSessionTicket(WOLFSSL* ssl, const byte* input, word32* inOutIdx,
             case WOLFSSL_KYBER_LEVEL1:
             case WOLFSSL_KYBER_LEVEL3:
             case WOLFSSL_KYBER_LEVEL5:
+                return 1;
+            default:
+                return 0;
+        }
+    }
+
+    /* Returns 1 when the given group is a PQC hybrid group, 0 otherwise. */
+    int NamedGroupIsPqcHybrid(int group)
+    {
+        switch (group) {
             case WOLFSSL_P256_KYBER_LEVEL3:
             case WOLFSSL_X25519_KYBER_LEVEL3:
             case WOLFSSL_P384_KYBER_LEVEL5:
