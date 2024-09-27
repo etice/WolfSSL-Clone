@@ -7997,10 +7997,10 @@ static int TLSX_KeyShare_GenPqcHybridKeyClient(WOLFSSL *ssl, KeyShareEntry* kse)
     if (ret == 0) {
         pqc_kse->group = pqc_group;
         ret = TLSX_KeyShare_GenPqcKeyClient(ssl, pqc_kse);
-        /* No error message, TLSX_KeyShare_GenPqcKey will do it. */
+        /* No error message, TLSX_KeyShare_GenPqcKeyClient will do it. */
     }
 
-    /* Create combined public key */
+    /* Allocate memory for combined public key */
     if (ret == 0) {
         kse->pubKey = (byte*)XMALLOC(ecc_kse->pubKeyLen + pqc_kse->pubKeyLen,
                                      ssl->heap, DYNAMIC_TYPE_PUBLIC_KEY);
@@ -8009,10 +8009,26 @@ static int TLSX_KeyShare_GenPqcHybridKeyClient(WOLFSSL *ssl, KeyShareEntry* kse)
             ret = MEMORY_ERROR;
         }
     }
+
+    /* Create combined public key.
+     * For hybrids with SECP-based ECC, we put the ECC public key first.
+     * For X25519/X448 hybrids, the PQC KEM public key is fist. This is done
+     * to always have a FIPS approved algorithm first. */
     if (ret == 0) {
-        XMEMCPY(kse->pubKey, ecc_kse->pubKey, ecc_kse->pubKeyLen);
-        XMEMCPY(kse->pubKey + ecc_kse->pubKeyLen, pqc_kse->pubKey,
-                pqc_kse->pubKeyLen);
+    #if (defined(HAVE_CURVE25519) || defined(HAVE_CURVE448)) && \
+        !defined(WOLFSSL_KYBER_ORIGINAL)
+        if (ecc_group == WOLFSSL_ECC_X25519 || ecc_group == WOLFSSL_ECC_X448) {
+            XMEMCPY(kse->pubKey, pqc_kse->pubKey, pqc_kse->pubKeyLen);
+            XMEMCPY(kse->pubKey + pqc_kse->pubKeyLen, ecc_kse->pubKey,
+                    ecc_kse->pubKeyLen);
+        }
+        else
+    #endif
+        {
+            XMEMCPY(kse->pubKey, ecc_kse->pubKey, ecc_kse->pubKeyLen);
+            XMEMCPY(kse->pubKey + ecc_kse->pubKeyLen, pqc_kse->pubKey,
+                    pqc_kse->pubKeyLen);
+        }
         kse->pubKeyLen = ecc_kse->pubKeyLen + pqc_kse->pubKeyLen;
     }
 
@@ -8361,10 +8377,15 @@ static int TLSX_KeyShare_ProcessDh(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
  *
  * ssl            The SSL/TLS object.
  * keyShareEntry  The key share entry object to use to calculate shared secret.
+ * ssOutput       The destination buffer for the shared secret.
+ * ssOutSz        The size of the generated shared secret.
+ *
  * returns 0 on success and other values indicate failure.
  */
-static int TLSX_KeyShare_ProcessX25519(WOLFSSL* ssl,
-                                       KeyShareEntry* keyShareEntry)
+static int TLSX_KeyShare_ProcessX25519_ex(WOLFSSL* ssl,
+                                          KeyShareEntry* keyShareEntry,
+                                          unsigned char* ssOutput,
+                                          word32* ssOutSz)
 {
     int ret;
 
@@ -8415,9 +8436,7 @@ static int TLSX_KeyShare_ProcessX25519(WOLFSSL* ssl,
         ssl->ecdhCurveOID = ECC_X25519_OID;
 
         ret = wc_curve25519_shared_secret_ex(key, peerX25519Key,
-                                                   ssl->arrays->preMasterSecret,
-                                                   &ssl->arrays->preMasterSz,
-                                                   EC25519_LITTLE_ENDIAN);
+                    ssOutput, ssOutSz, EC25519_LITTLE_ENDIAN);
     }
 
     wc_curve25519_free(peerX25519Key);
@@ -8440,13 +8459,33 @@ static int TLSX_KeyShare_ProcessX25519(WOLFSSL* ssl,
     return ret;
 }
 
+/* Process the X25519 key share extension on the client side.
+ *
+ * ssl            The SSL/TLS object.
+ * keyShareEntry  The key share entry object to use to calculate shared secret.
+ *
+ * returns 0 on success and other values indicate failure.
+ */
+static int TLSX_KeyShare_ProcessX25519(WOLFSSL* ssl,
+                                       KeyShareEntry* keyShareEntry)
+{
+    return TLSX_KeyShare_ProcessX25519_ex(ssl, keyShareEntry,
+                ssl->arrays->preMasterSecret, &ssl->arrays->preMasterSz);
+}
+
 /* Process the X448 key share extension on the client side.
  *
  * ssl            The SSL/TLS object.
  * keyShareEntry  The key share entry object to use to calculate shared secret.
+ * ssOutput       The destination buffer for the shared secret.
+ * ssOutSz        The size of the generated shared secret.
+ *
  * returns 0 on success and other values indicate failure.
  */
-static int TLSX_KeyShare_ProcessX448(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
+static int TLSX_KeyShare_ProcessX448_ex(WOLFSSL* ssl,
+                                        KeyShareEntry* keyShareEntry,
+                                        unsigned char* ssOutput,
+                                        word32* ssOutSz)
 {
     int ret;
 
@@ -8497,9 +8536,7 @@ static int TLSX_KeyShare_ProcessX448(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
         ssl->ecdhCurveOID = ECC_X448_OID;
 
         ret = wc_curve448_shared_secret_ex(key, peerX448Key,
-                                                   ssl->arrays->preMasterSecret,
-                                                   &ssl->arrays->preMasterSz,
-                                                   EC448_LITTLE_ENDIAN);
+                    ssOutput, ssOutSz, EC448_LITTLE_ENDIAN);
     }
 
     wc_curve448_free(peerX448Key);
@@ -8522,13 +8559,31 @@ static int TLSX_KeyShare_ProcessX448(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
     return ret;
 }
 
-/* Process the ECC key share extension on the client side.
+/* Process the X448 key share extension on the client side.
  *
  * ssl            The SSL/TLS object.
  * keyShareEntry  The key share entry object to use to calculate shared secret.
  * returns 0 on success and other values indicate failure.
  */
-static int TLSX_KeyShare_ProcessEcc(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
+static int TLSX_KeyShare_ProcessX448(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
+{
+    return TLSX_KeyShare_ProcessX448_ex(ssl, keyShareEntry,
+                ssl->arrays->preMasterSecret, &ssl->arrays->preMasterSz);
+}
+
+/* Process the ECC key share extension on the client side.
+ *
+ * ssl            The SSL/TLS object.
+ * keyShareEntry  The key share entry object to use to calculate shared secret.
+ * ssOutput       The destination buffer for the shared secret.
+ * ssOutSz        The size of the generated shared secret.
+ *
+ * returns 0 on success and other values indicate failure.
+ */
+static int TLSX_KeyShare_ProcessEcc_ex(WOLFSSL* ssl,
+                                       KeyShareEntry* keyShareEntry,
+                                       unsigned char* ssOutput,
+                                       word32* ssOutSz)
 {
     int ret = 0;
 #ifdef HAVE_ECC
@@ -8628,9 +8683,7 @@ static int TLSX_KeyShare_ProcessEcc(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
     if (ret == 0) {
         ret = EccSharedSecret(ssl, eccKey, ssl->peerEccKey,
             keyShareEntry->ke, &keyShareEntry->keLen,
-            ssl->arrays->preMasterSecret, &ssl->arrays->preMasterSz,
-            ssl->options.side
-        );
+            ssOutput, ssOutSz, ssl->options.side);
     #ifdef WOLFSSL_ASYNC_CRYPT
         if (ret == WC_NO_ERR_TRACE(WC_PENDING_E))
             return ret;
@@ -8666,6 +8719,18 @@ static int TLSX_KeyShare_ProcessEcc(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
 #endif /* HAVE_ECC */
 
     return ret;
+}
+
+/* Process the ECC key share extension on the client side.
+ *
+ * ssl            The SSL/TLS object.
+ * keyShareEntry  The key share entry object to use to calculate shared secret.
+ * returns 0 on success and other values indicate failure.
+ */
+static int TLSX_KeyShare_ProcessEcc(WOLFSSL* ssl, KeyShareEntry* keyShareEntry)
+{
+    return TLSX_KeyShare_ProcessEcc_ex(ssl, keyShareEntry,
+                ssl->arrays->preMasterSecret, &ssl->arrays->preMasterSz);
 }
 
 #ifdef WOLFSSL_HAVE_KYBER
@@ -8810,7 +8875,8 @@ static int TLSX_KeyShare_ProcessPqcHybridClient(WOLFSSL* ssl,
     KeyShareEntry *ecc_kse = NULL;
     word32   ctSz = 0;
     word32   ssSzPqc = 0;
-    word32   ssSzEcc = 0;
+    word32   ssSzEcc = ssl->arrays->preMasterSz; // We need the buffer size for
+                                                 // the logic to work downwards.
 
     if (ssl->options.side == WOLFSSL_SERVER_END) {
         /* I am the server, the shared secret has already been generated and
@@ -8881,6 +8947,10 @@ static int TLSX_KeyShare_ProcessPqcHybridClient(WOLFSSL* ssl,
         if (ret == 0) {
             ret = wc_KyberKey_CipherTextSize((KyberKey*)pqc_kse->key,
                                              &ctSz);
+            if (ret == 0 && keyShareEntry->keLen <= ctSz) {
+                WOLFSSL_MSG("Invalid ciphertext size.");
+                ret = BAD_FUNC_ARG;
+            }
         }
         if (ret == 0) {
             pqc_kse->keLen = ctSz;
@@ -8890,10 +8960,21 @@ static int TLSX_KeyShare_ProcessPqcHybridClient(WOLFSSL* ssl,
                 WOLFSSL_MSG("pqc_kse memory allocation failure");
                 ret = MEMORY_ERROR;
             }
+            /* Copy the PQC KEM ciphertext. For SECP-based hybrids, the KEM
+             * ciphertext comes after the ECDH public key. For X25519/X448
+             * hybrids, the KEM part comes first. */
             if (ret == 0) {
-                XMEMCPY(pqc_kse->ke,
-                        keyShareEntry->ke + keyShareEntry->keLen - ctSz,
-                        ctSz);
+                int offset = keyShareEntry->keLen - ctSz;
+
+            #if (defined(HAVE_CURVE25519) || defined(HAVE_CURVE448)) && \
+                !defined(WOLFSSL_KYBER_ORIGINAL)
+                if (ecc_group == WOLFSSL_ECC_X25519 ||
+                    ecc_group == WOLFSSL_ECC_X448) {
+                    offset = 0;
+                    }
+            #endif
+
+                XMEMCPY(pqc_kse->ke, keyShareEntry->ke + offset, ctSz);
             }
         }
     }
@@ -8909,31 +8990,58 @@ static int TLSX_KeyShare_ProcessPqcHybridClient(WOLFSSL* ssl,
             WOLFSSL_MSG("ecc_kse memory allocation failure");
             ret = MEMORY_ERROR;
         }
+        /* Copy the ECDH public key. */
         if (ret == 0) {
-            XMEMCPY(ecc_kse->ke, keyShareEntry->ke, ecc_kse->keLen);
+            int offset = 0;
+
+        #if (defined(HAVE_CURVE25519) || defined(HAVE_CURVE448)) && \
+            !defined(WOLFSSL_KYBER_ORIGINAL)
+            if (ecc_group == WOLFSSL_ECC_X25519 ||
+                ecc_group == WOLFSSL_ECC_X448) {
+                offset = ctSz;
+            }
+        #endif
+
+            XMEMCPY(ecc_kse->ke, keyShareEntry->ke + offset, ecc_kse->keLen);
         }
     }
 
-    /* Process ECDH key share part */
+    /* Process ECDH key share part. The generated shared secret is directly
+     * stored in the ssl->arrays->preMasterSecret buffer. For SECP-based
+     * hybrids, the ECDH part is stored first. For X25519/X448 based hybrids,
+     * the PQC KEM part comes first. This is due to the requirement to always
+     * have material of a FIPS approved algorithm first. */
     if (ret == 0) {
     #ifdef HAVE_CURVE25519
         if (ecc_group == WOLFSSL_ECC_X25519) {
-            ret = TLSX_KeyShare_ProcessX25519(ssl, ecc_kse);
+        #if defined(WOLFSSL_KYBER_ORIGINAL)
+            ret = TLSX_KeyShare_ProcessX25519_ex(ssl, ecc_kse,
+                    ssl->arrays->preMasterSecret, &ssSzEcc);
+        #else
+            ret = TLSX_KeyShare_ProcessX25519_ex(ssl, ecc_kse,
+                    ssl->arrays->preMasterSecret + ssSzPqc, &ssSzEcc);
+        #endif
         }
         else
     #endif
     #ifdef HAVE_CURVE448
         if (ecc_group == WOLFSSL_ECC_X448) {
-            ret = TLSX_KeyShare_ProcessX448(ssl, ecc_kse);
+        #if defined(WOLFSSL_KYBER_ORIGINAL)
+            ret = TLSX_KeyShare_ProcessX448_ex(ssl, ecc_kse,
+                    ssl->arrays->preMasterSecret, &ssSzEcc);
+        #else
+            ret = TLSX_KeyShare_ProcessX448_ex(ssl, ecc_kse,
+                    ssl->arrays->preMasterSecret + ssSzPqc, &ssSzEcc);
+        #endif
         }
         else
     #endif
         {
-            ret = TLSX_KeyShare_ProcessEcc(ssl, ecc_kse);
+            ret = TLSX_KeyShare_ProcessEcc_ex(ssl, ecc_kse,
+                    ssl->arrays->preMasterSecret, &ssSzEcc);
         }
     }
     if (ret == 0) {
-        ssSzEcc = ssl->arrays->preMasterSz;
         keyShareEntry->key = ecc_kse->key;
 
         if ((ret == 0) && ((ssSzEcc + ssSzPqc) > ENCRYPT_LEN)) {
@@ -8942,10 +9050,20 @@ static int TLSX_KeyShare_ProcessPqcHybridClient(WOLFSSL* ssl,
         }
     }
 
-    /* Process PQC Kem key share part */
+    /* Process PQC KEM key share part. For SECP-based hybrids, the KEM
+     * shared secret goes behind the ECDH part. For X25519/X448 hybrids,
+     * the KEM part goes first. */
     if (ret == 0) {
+        int offset = ssSzEcc;
+
+    #if (defined(HAVE_CURVE25519) || defined(HAVE_CURVE448)) && \
+        !defined(WOLFSSL_KYBER_ORIGINAL)
+        if (ecc_group == WOLFSSL_ECC_X25519 || ecc_group == WOLFSSL_ECC_X448)
+            offset = 0;
+    #endif
+
         ret = TLSX_KeyShare_ProcessPqcClient_ex(ssl, pqc_kse,
-                    ssl->arrays->preMasterSecret + ssSzEcc, &ssSzPqc);
+                    ssl->arrays->preMasterSecret + offset, &ssSzPqc);
     }
     if (ret == 0) {
         ssl->arrays->preMasterSz = ssSzEcc + ssSzPqc;
@@ -9041,8 +9159,8 @@ static int TLSX_KeyShareEntry_Parse(const WOLFSSL* ssl, const byte* input,
 #ifdef WOLFSSL_HAVE_KYBER
     if (WOLFSSL_NAMED_GROUP_IS_PQC(group) &&
         ssl->options.side == WOLFSSL_SERVER_END) {
-        /* For KEMs, the public key is not stored. Casting away const because
-         * we know for KEMs, it will be read-only.*/
+        /* For pure KEMs (no hybrid), the public key is not stored. Casting
+         * away const because we know for KEMs, it will be read-only.*/
         ke = (byte *)&input[offset];
     } else
 #endif
@@ -9437,7 +9555,8 @@ static int TLSX_KeyShare_HandlePqcHybridKeyServer(WOLFSSL* ssl,
     word32 pubSz = 0;
     word32 ctSz = 0;
     word32 ssSzPqc = 0;
-    word32 ssSzEcc = 0;
+    word32 ssSzEcc = ssl->arrays->preMasterSz; // We need the buffer size for
+                                               // the logic to work downwards.
 
     /* Determine the ECC and PQC group of the hybrid combination */
     findEccPqc(&ecc_group, &pqc_group, keyShareEntry->group);
@@ -9538,7 +9657,11 @@ static int TLSX_KeyShare_HandlePqcHybridKeyServer(WOLFSSL* ssl,
         }
     }
 
-    /* Process ECDH key share part */
+    /* Process ECDH key share part. The generated shared secret is directly
+     * stored in the ssl->arrays->preMasterSecret buffer. For SECP-based
+     * hybrids, the ECDH part is stored first. For X25519/X448 based hybrids,
+     * the PQC KEM part comes first. This is due to the requirement to always
+     * have material of a FIPS approved algorithm first. */
     if (ret == 0) {
         ecc_kse->keLen = len - pubSz;
         ecc_kse->ke = (byte*)XMALLOC(ecc_kse->keLen, ssl->heap,
@@ -9548,27 +9671,48 @@ static int TLSX_KeyShare_HandlePqcHybridKeyServer(WOLFSSL* ssl,
             ret = MEMORY_ERROR;
         }
         if (ret == 0) {
-            XMEMCPY(ecc_kse->ke, data, ecc_kse->keLen);
+            int offset = 0;
+
+        #if (defined(HAVE_CURVE25519) || defined(HAVE_CURVE448)) && \
+            !defined(WOLFSSL_KYBER_ORIGINAL)
+            if (ecc_kse->group == WOLFSSL_ECC_X25519 ||
+                ecc_group == WOLFSSL_ECC_X448) {
+                offset = pubSz;
+            }
+        #endif
+
+            XMEMCPY(ecc_kse->ke, data + offset, ecc_kse->keLen);
 
         #ifdef HAVE_CURVE25519
             if (ecc_group == WOLFSSL_ECC_X25519) {
-                ret = TLSX_KeyShare_ProcessX25519(ssl, ecc_kse);
+            #if defined(WOLFSSL_KYBER_ORIGINAL)
+                ret = TLSX_KeyShare_ProcessX25519_ex(ssl, ecc_kse,
+                        ssl->arrays->preMasterSecret, &ssSzEcc);
+            #else
+                ret = TLSX_KeyShare_ProcessX25519_ex(ssl, ecc_kse,
+                        ssl->arrays->preMasterSecret + ssSzPqc, &ssSzEcc);
+            #endif
             }
             else
         #endif
         #ifdef HAVE_CURVE448
             if (ecc_group == WOLFSSL_ECC_X448) {
-                ret = TLSX_KeyShare_ProcessX448(ssl, ecc_kse);
+            #if defined(WOLFSSL_KYBER_ORIGINAL)
+                ret = TLSX_KeyShare_ProcessX448_ex(ssl, ecc_kse,
+                        ssl->arrays->preMasterSecret, &ssSzEcc);
+            #else
+                ret = TLSX_KeyShare_ProcessX448_ex(ssl, ecc_kse,
+                        ssl->arrays->preMasterSecret + ssSzPqc, &ssSzEcc);
+            #endif
             }
             else
         #endif
             {
-                ret = TLSX_KeyShare_ProcessEcc(ssl, ecc_kse);
+                ret = TLSX_KeyShare_ProcessEcc_ex(ssl, ecc_kse,
+                        ssl->arrays->preMasterSecret, &ssSzEcc);
             }
         }
         if (ret == 0) {
-            ssSzEcc = ssl->arrays->preMasterSz;
-
             if (ssSzEcc != ecc_kse->keyLen) {
                 WOLFSSL_MSG("Data length mismatch.");
                 ret = BAD_FUNC_ARG;
@@ -9581,11 +9725,24 @@ static int TLSX_KeyShare_HandlePqcHybridKeyServer(WOLFSSL* ssl,
         ret = LENGTH_ERROR;
     }
 
-    /* Process the PQC KEM key share part */
+    /* Process PQC KEM key share part. For SECP-based hybrids, the KEM
+     * shared secret goes behind the ECDH part. For X25519/X448 hybrids,
+     * the KEM part goes first. */
     if (ret == 0) {
+        int input_offset = ecc_kse->keLen;
+        int output_offset = ssSzEcc;
+
+    #if (defined(HAVE_CURVE25519) || defined(HAVE_CURVE448)) && \
+        !defined(WOLFSSL_KYBER_ORIGINAL)
+        if (ecc_group == WOLFSSL_ECC_X25519 || ecc_group == WOLFSSL_ECC_X448) {
+            input_offset = 0;
+            output_offset = 0;
+        }
+    #endif
+
         ret = TLSX_KeyShare_HandlePqcKeyServer(ssl, pqc_kse,
-                data + ecc_kse->keLen, pubSz,
-                ssl->arrays->preMasterSecret + ssSzEcc, &ssSzPqc);
+                data + input_offset, pubSz,
+                ssl->arrays->preMasterSecret + output_offset, &ssSzPqc);
     }
 
     if (ret == 0) {
@@ -9595,12 +9752,25 @@ static int TLSX_KeyShare_HandlePqcHybridKeyServer(WOLFSSL* ssl,
         keyShareEntry->ke = NULL;
         keyShareEntry->keLen = 0;
 
-        if (ecc_kse->pubKeyLen > 0)
+        /* Concatenate the ECDH public key and the PQC KEM ciphertext.
+         * For hybrids with SECP-based ECC, the ECC public key is placed first.
+         * For X25519/X448 based hybrids, the PQC KEM ciphertext comes first in
+         * order to always have a FIPS approved algorithms first. */
+    #if (defined(HAVE_CURVE25519) || defined(HAVE_CURVE448)) && \
+        !defined(WOLFSSL_KYBER_ORIGINAL)
+        if (ecc_group == WOLFSSL_ECC_X25519 || ecc_group == WOLFSSL_ECC_X448) {
+            XMEMCPY(ciphertext, pqc_kse->pubKey, ctSz);
+            XMEMCPY(ciphertext + ctSz, ecc_kse->pubKey, ecc_kse->pubKeyLen);
+        }
+        else
+    #endif
+        {
             XMEMCPY(ciphertext, ecc_kse->pubKey, ecc_kse->pubKeyLen);
-        if (pqc_kse->pubKeyLen > 0)
             XMEMCPY(ciphertext + ecc_kse->pubKeyLen, pqc_kse->pubKey, ctSz);
+        }
+
         keyShareEntry->pubKey = ciphertext;
-        keyShareEntry->pubKeyLen = (word32)(ecc_kse->pubKeyLen + ctSz);
+        keyShareEntry->pubKeyLen = ecc_kse->pubKeyLen + ctSz;
         ciphertext = NULL;
 
         /* Set namedGroup so wolfSSL_get_curve_name() can function properly on
@@ -9868,6 +10038,19 @@ static int TLSX_KeyShare_IsSupported(int namedGroup)
         case WOLFSSL_KYBER_LEVEL1:
         case WOLFSSL_KYBER_LEVEL3:
         case WOLFSSL_KYBER_LEVEL5:
+        {
+            int ret;
+            int id;
+            ret = kyber_id2type(namedGroup, &id);
+            if (ret == WC_NO_ERR_TRACE(NOT_COMPILED_IN)) {
+                return 0;
+            }
+
+            if (! ext_kyber_enabled(id)) {
+                return 0;
+            }
+            break;
+        }
         case WOLFSSL_P256_KYBER_LEVEL1:
         case WOLFSSL_P384_KYBER_LEVEL3:
         case WOLFSSL_P256_KYBER_LEVEL3:
