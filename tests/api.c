@@ -2564,7 +2564,7 @@ static int test_wolfSSL_CTX_load_verify_locations(void)
         WC_NO_ERR_TRACE(WOLFSSL_FAILURE));
 
     /* Test loading expired CA certificates */
-    #ifdef NO_RSA
+    #if defined(NO_RSA) || defined(WOLFSSL_X509_STRICT)
     ExpectIntNE(wolfSSL_CTX_load_verify_locations_ex(ctx, NULL,
         load_expired_path,
         WOLFSSL_LOAD_FLAG_DATE_ERR_OKAY | WOLFSSL_LOAD_FLAG_PEM_CA_ONLY),
@@ -3034,7 +3034,11 @@ static int test_wolfSSL_CertManagerLoadCABuffer_ex(void)
 #elif !(WOLFSSL_LOAD_VERIFY_DEFAULT_FLAGS & WOLFSSL_LOAD_FLAG_DATE_ERR_OKAY) && \
       !defined(NO_ASN_TIME) && defined(WOLFSSL_TRUST_PEER_CERT) && \
       defined(OPENSSL_COMPATIBLE_DEFAULTS)
-    ExpectIntEQ(ret, WC_NO_ERR_TRACE(ASN_AFTER_DATE_E));
+    #if defined(WOLFSSL_X509_STRICT)
+        ExpectIntEQ(ret, WC_NO_ERR_TRACE(NOT_CA_ERROR));
+    #else
+        ExpectIntEQ(ret, WC_NO_ERR_TRACE(ASN_AFTER_DATE_E));
+    #endif
 #else
     #if defined(OPENSSL_ALL) && defined(WOLFSSL_X509_STRICT)
         ExpectIntEQ(ret, NOT_CA_ERROR);
@@ -72240,7 +72244,7 @@ static int test_wolfSSL_X509_CA_num(void)
     int ca_num = 0;
 
     ExpectNotNull(store = wolfSSL_X509_STORE_new());
-#if defined(OPENSSL_EXTRA)
+#if defined(OPENSSL_ALL) && defined(WOLFSSL_X509_STRICT)
     ExpectNotNull(x509_1 = wolfSSL_X509_load_certificate_file(caCertFile,
         WOLFSSL_FILETYPE_PEM));
 #else
@@ -72249,7 +72253,7 @@ static int test_wolfSSL_X509_CA_num(void)
 #endif
     ExpectIntEQ(wolfSSL_X509_STORE_add_cert(store, x509_1), 1);
     ExpectIntEQ(ca_num = wolfSSL_X509_CA_num(store), 1);
-#if defined(OPENSSL_EXTRA)
+#if defined(OPENSSL_ALL) && defined(WOLFSSL_X509_STRICT)
     ExpectNotNull(x509_2 = wolfSSL_X509_load_certificate_file(caEccCertFile,
         WOLFSSL_FILETYPE_PEM));
 #else
@@ -75830,7 +75834,7 @@ static int test_wolfSSL_OCSP_parse_url(void)
 
 #if defined(OPENSSL_ALL) && defined(HAVE_OCSP) && \
     defined(WOLFSSL_SIGNER_DER_CERT) && !defined(NO_FILESYSTEM) && \
-    !defined(NO_ASN_TIME)
+    !defined(NO_ASN_TIME) && !defined(WOLFSSL_X509_STRICT)
 static time_t test_wolfSSL_OCSP_REQ_CTX_time_cb(time_t* t)
 {
     if (t != NULL) {
@@ -75845,7 +75849,8 @@ static int test_wolfSSL_OCSP_REQ_CTX(void)
 {
     EXPECT_DECLS;
 #if defined(OPENSSL_ALL) && defined(HAVE_OCSP) && \
-    defined(WOLFSSL_SIGNER_DER_CERT) && !defined(NO_FILESYSTEM)
+    defined(WOLFSSL_SIGNER_DER_CERT) && !defined(NO_FILESYSTEM) && \
+    !defined(WOLFSSL_X509_STRICT)
     /* This buffer was taken from the ocsp-stapling.test test case 1. The ocsp
      * response was captured in wireshark. It contains both the http and binary
      * parts. The time test_wolfSSL_OCSP_REQ_CTX_time_cb is set exactly so that

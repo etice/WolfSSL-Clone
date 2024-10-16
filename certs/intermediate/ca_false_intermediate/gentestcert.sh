@@ -2,7 +2,7 @@
 
 # Script for generating RSA CA and server certs based on it.
 #
-SEVER_PEM='test_sign_bynoca_srv.pem'
+SERVER_PEM='test_sign_bynoca_srv.pem'
 INTCA_PEM='test_int_not_cacert.pem'
 CA_PEM='test_ca.pem'
 
@@ -75,13 +75,13 @@ cleanup_files(){
     rm -f wolfssl_ca.conf
     rm -f wolfssl_int_ca.conf
     rm -rf pki/
-    exit 0
 }
 
 # clean up
 if [ "$1" = "clean" ]; then
     echo "Cleaning temp files"
     cleanup_files
+    exit 0
 fi
 if [ "$1" = "cleanall" ]; then
     echo "Cleaning all files"
@@ -89,6 +89,7 @@ if [ "$1" = "cleanall" ]; then
     rm -f ./"$INTCA_PEM"
     rm -f ./"$CA_PEM"
     cleanup_files
+    exit 0
 fi
 # Generate OpenSSL Conf files
 Generate_conf
@@ -152,7 +153,7 @@ mv $INT_CA_HOME/$INTCA_NAME.pem $INTCA_PEM
 # Server
 openssl x509 -in $SRV_CRT_HOME/server.crt -inform PEM -noout -text > $SRV_CRT_HOME/server.pem
 cat $SRV_CRT_HOME/server.crt >> $SRV_CRT_HOME/server.pem
-mv $SRV_CRT_HOME/server.pem $SEVER_PEM
+mv $SRV_CRT_HOME/server.pem $SERVER_PEM
 
 # clean up
 cleanup_files
