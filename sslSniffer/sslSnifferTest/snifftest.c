@@ -1086,7 +1086,7 @@ int main(int argc, char** argv)
             /* Jump to the selected adapter */
             for (d = alldevs, i = 0; i < inum - 1; d = d->next, i++);
         } else {
-            int deviceNameSz = XSTRLEN(deviceName);
+            int deviceNameSz = (int)XSTRLEN(deviceName);
             for (d = alldevs; d; d = d->next) {
                 if (XSTRNCMP(d->name,deviceName,deviceNameSz) == 0) {
                     fprintf(stderr, "%s == %s\n", d->name, deviceName);
