@@ -6592,7 +6592,7 @@ static int ssl_DecodePacketInternal(const byte* packet, int length, int isChain,
         length = 0;
         for (i = 0; i < chainSz; i++) length += chain[i].iov_len;
 
-        tmpPacket = (byte*)XMALLOC(length, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+        tmpPacket = (byte*)XMALLOC(length, NULL, DYNAMIC_TYPE_SNIFFER_CHAIN_BUFFER);
         if (tmpPacket == NULL) return MEMORY_E;
 
         length = 0;
@@ -6752,7 +6752,7 @@ static int ssl_DecodePacketInternal(const byte* packet, int length, int isChain,
 
 exit_decode:
     if (isChain) {
-        XFREE(tmpPacket, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+        XFREE(tmpPacket, NULL, DYNAMIC_TYPE_SNIFFER_CHAIN_BUFFER);
     }
     return ret;
 }
