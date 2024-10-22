@@ -33,6 +33,16 @@
     extern "C" {
 #endif
 
+/* For platforms where the target OS is not Windows, but compilation is
+ * done on Windows/Visual Studio, enable a way to disable USE_WINDOWS_API.
+ * Examples: Micrium, TenAsus INtime, uTasker, FreeRTOS simulator */
+#if defined(_WIN32) && !defined(MICRIUM) && !defined(FREERTOS) && \
+    !defined(FREERTOS_TCP) && !defined(EBSNET) && \
+    !defined(WOLFSSL_UTASKER) && !defined(INTIME_RTOS) && \
+    !defined(WOLFSSL_NOT_WINDOWS_API)
+    #define USE_WINDOWS_API
+#endif
+
 /* Detect if compiler supports C99. "NO_WOLF_C99" can be defined in
  * user_settings.h to disable checking for C99 support. */
 #if !defined(WOLF_C99) && defined(__STDC_VERSION__) && \
