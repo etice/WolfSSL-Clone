@@ -182,19 +182,27 @@ decouple library dependencies with standard string, memory and so on.
          #endif
     #endif
 
-    #if (defined(_MSC_VER) && !defined(WOLFSSL_NOT_WINDOWS_API)) || \
-        defined(__BCPLUSPLUS__)
+    #if defined(__WATCOMC__) && defined(__WATCOM_INT64__)
+        /* for watcomc compiler long long is not available, use __int64 */
+        #define WORD64_AVAILABLE
+        #define W64LIT(x) x##UL
+        #define SW64LIT(x) x##L
+        typedef          __int64 sword64;
+        typedef unsigned __int64  word64;
+    #elif (defined(_MSC_VER) && !defined(WOLFSSL_NOT_WINDOWS_API)) || \
+           defined(__BCPLUSPLUS__)
+        /* windows types */
         #define WORD64_AVAILABLE
         #define W64LIT(x) x##ui64
         #define SW64LIT(x) x##i64
         typedef          __int64 sword64;
-        typedef unsigned __int64 word64;
+        typedef unsigned __int64  word64;
     #elif defined(__EMSCRIPTEN__)
         #define WORD64_AVAILABLE
         #define W64LIT(x) x##ull
         #define SW64LIT(x) x##ll
         typedef          long long sword64;
-        typedef unsigned long long word64;
+        typedef unsigned long long  word64;
     #elif defined(SIZEOF_LONG) && SIZEOF_LONG == 8
         #define WORD64_AVAILABLE
         #ifdef WOLF_C89
@@ -216,7 +224,7 @@ decouple library dependencies with standard string, memory and so on.
             #define SW64LIT(x) x##LL
         #endif
         typedef          long long sword64;
-        typedef unsigned long long word64;
+        typedef unsigned long long  word64;
     #elif defined(__SIZEOF_LONG_LONG__) && __SIZEOF_LONG_LONG__ == 8
         #define WORD64_AVAILABLE
         #ifdef WOLF_C89
@@ -227,7 +235,7 @@ decouple library dependencies with standard string, memory and so on.
             #define SW64LIT(x) x##LL
         #endif
         typedef          long long sword64;
-        typedef unsigned long long word64;
+        typedef unsigned long long  word64;
     #endif
 
 #if defined(WORD64_AVAILABLE) && !defined(WC_16BIT_CPU)
