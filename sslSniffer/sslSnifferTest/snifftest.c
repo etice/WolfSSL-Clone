@@ -1016,8 +1016,10 @@ int main(int argc, char** argv)
         else {
             fprintf(stderr, "Error parsing: %s\n", argv[i]);
             fprintf(stderr, "Usage: %s -pcap pcap_arg -key key_arg"
+                    " [-deviceName deviceName_arg]"
                     " [-password password_arg] [-server server_arg]"
                     " [-port port_arg]"
+                    " [-tracefile tracefile_arg]"
 #if defined(WOLFSSL_SNIFFER_KEYLOGFILE)
                     " [-keylogfile keylogfile_arg]"
 #endif /* WOLFSSL_SNIFFER_KEYLOGFILE */
