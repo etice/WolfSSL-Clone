@@ -38547,7 +38547,6 @@ static int ParseCRL_AuthKeyIdExt(const byte* input, int sz, DecodedCRL* dcrl)
 }
 #endif
 
-
 #ifndef WOLFSSL_ASN_TEMPLATE
 static int ParseCRL_Extensions(DecodedCRL* dcrl, const byte* buf,
         word32* inOutIdx, word32 sz)
@@ -38739,7 +38738,16 @@ static int ParseCRL_Extensions(DecodedCRL* dcrl, const byte* buf, word32 idx,
                 }
             #endif
             }
-            /* TODO: Parse CRL Number extension */
+            else if (oid == CRL_NUMBER_OID) {
+                /* Parse CRL Number extension.
+                 * idx is at start of OCTET_STRING data. */
+                if (GetShortInt(buf,
+                    &idx, &dcrl->crlNumber, maxIdx) < 0) {
+                    WOLFSSL_MSG("\tcouldn't parse CRL Number extension");
+                    ret = ASN_PARSE_E;
+                    break;
+                }
+            }
             /* TODO: check criticality */
             /* Move index on to next extension. */
             idx += (word32)length;
