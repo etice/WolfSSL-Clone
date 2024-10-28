@@ -695,8 +695,8 @@ static int wc_init_memory_heap(WOLFSSL_HEAP* heap, unsigned int listSz,
 }
 
 int wc_LoadStaticMemory_ex(WOLFSSL_HEAP_HINT** pHint,
-        unsigned int listSz, const unsigned int* sizeList,
-        const unsigned int* distList, unsigned char* buf,
+        unsigned int listSz, const word32* sizeList,
+        const word32* distList, unsigned char* buf,
         unsigned int sz, int flag, int maxSz)
 {
     WOLFSSL_HEAP*      heap = NULL;
@@ -773,13 +773,8 @@ int wc_LoadStaticMemory_ex(WOLFSSL_HEAP_HINT** pHint,
 int wc_LoadStaticMemory(WOLFSSL_HEAP_HINT** pHint,
     unsigned char* buf, unsigned int sz, int flag, int maxSz)
 {
-#ifdef WOLFSSL_LEAN_STATIC_PSK
-    word16 sizeList[WOLFMEM_DEF_BUCKETS] = { WOLFMEM_BUCKETS };
-    byte   distList[WOLFMEM_DEF_BUCKETS] = { WOLFMEM_DIST };
-#else
     word32 sizeList[WOLFMEM_DEF_BUCKETS] = { WOLFMEM_BUCKETS };
     word32 distList[WOLFMEM_DEF_BUCKETS] = { WOLFMEM_DIST };
-#endif
     int ret = 0;
 
     WOLFSSL_ENTER("wc_LoadStaticMemory");
