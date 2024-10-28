@@ -30874,7 +30874,8 @@ static wc_test_ret_t ecc_test_curve_size(WC_RNG* rng, int keySize, int testVerif
     /* WC_BIGINT doesn't have 0 len well on hardware */
     /* Cryptocell has issues with all 0 digest */
 #if defined(ECC_SHAMIR) && !defined(WOLFSSL_ASYNC_CRYPT) && \
-    !defined(WOLFSSL_CRYPTOCELL)
+    !defined(WOLFSSL_CRYPTOCELL) && \
+    !defined(WC_TEST_NO_ECC_SIGN_VERIFY_ZERO_DIGEST)
     /* test DSA sign hash with zeros */
     for (i = 0; i < (int)ECC_DIGEST_SIZE; i++) {
         digest[i] = 0;
@@ -30911,7 +30912,9 @@ static wc_test_ret_t ecc_test_curve_size(WC_RNG* rng, int keySize, int testVerif
         TEST_SLEEP();
     }
 #endif /* HAVE_ECC_VERIFY */
-#endif /* ECC_SHAMIR && !WOLFSSL_ASYNC_CRYPT && !WOLFSSL_CRYPTOCELL */
+#endif /* ECC_SHAMIR && !WOLFSSL_ASYNC_CRYPT && !WOLFSSL_CRYPTOCELL
+        * && !WC_TEST_NO_ECC_SIGN_VERIFY_ZERO_DIGEST
+        */
 
     /* test DSA sign hash with sequence (0,1,2,3,4,...) */
     for (i = 0; i < (int)ECC_DIGEST_SIZE; i++) {
