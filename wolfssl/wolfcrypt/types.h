@@ -182,15 +182,9 @@ decouple library dependencies with standard string, memory and so on.
          #endif
     #endif
 
-    #if defined(__WATCOMC__) && defined(__WATCOM_INT64__)
-        /* for watcomc compiler long long is not available, use __int64 */
-        #define WORD64_AVAILABLE
-        #define W64LIT(x) x##UL
-        #define SW64LIT(x) x##L
-        typedef          __int64 sword64;
-        typedef unsigned __int64  word64;
-    #elif (defined(_MSC_VER) && !defined(WOLFSSL_NOT_WINDOWS_API)) || \
-           defined(__BCPLUSPLUS__)
+    #if (defined(_MSC_VER) && !defined(WOLFSSL_NOT_WINDOWS_API)) || \
+           defined(__BCPLUSPLUS__) || \
+           (defined(__WATCOMC__) && defined(__WATCOM_INT64__))
         /* windows types */
         #define WORD64_AVAILABLE
         #define W64LIT(x) x##ui64
@@ -1756,7 +1750,11 @@ typedef struct w64wrapper {
     #endif
 
     #ifndef SAVE_VECTOR_REGISTERS
+        #ifdef __WATCOMC__
+        #define SAVE_VECTOR_REGISTERS() WC_DO_NOTHING
+        #else
         #define SAVE_VECTOR_REGISTERS(...) WC_DO_NOTHING
+        #endif
     #endif
     #ifndef SAVE_VECTOR_REGISTERS2
         #define SAVE_VECTOR_REGISTERS2() 0
