@@ -3977,3 +3977,10 @@ exit:
     char* myoptarg = NULL;
 
 #endif /* NO_MAIN_DRIVER */
+
+    int foo(int* i)
+    {
+        (*i)++;
+        if (i)
+            return *i;
+    }
