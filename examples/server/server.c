@@ -3978,6 +3978,8 @@ exit:
 
 #endif /* NO_MAIN_DRIVER */
 
+    int foo(int* i);
+
     int foo(int* i)
     {
         (*i)++;
