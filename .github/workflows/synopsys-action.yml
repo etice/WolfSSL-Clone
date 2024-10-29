@@ -23,6 +23,7 @@ jobs:
           coverity_url: ${{ vars.COVERITY_URL }}
           coverity_user: ${{ vars.COVERITY_USER }}
           coverity_passphrase: ${{ secrets.COVERITY_PASSPHRASE }}
+          coverity_build_command: make
           
           ### Coverity Connect users - Uncomment below
           coverity_local: true
