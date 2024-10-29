@@ -13,7 +13,7 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v4
       - name: Configure wolfSSL
-        run:
+        run: |
           ./autogen.sh
           ./configure --enable-all        
       - name: Coverity Scan
